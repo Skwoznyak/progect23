@@ -4,35 +4,30 @@ import fake_useragent
 
 app = Flask(__name__)
 
-# Создаём объект UserAgent один раз
 try:
     ua = fake_useragent.UserAgent()
     header = {'user-agent': ua.random}
 except Exception as e:
-    header = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0.4472.124 Safari/537.36'}
+    header = {
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0.4472.124 Safari/537.36'}
 
-@app.route('/track', methods=['POST'])
+
+@app.route('/track', methods=['GET'])
 def track_package():
     try:
-        # Пробуем получить данные из JSON
-        data = request.get_json()
-        if data and 'waybillNo' in data:
-            waybill_no = data['waybillNo']
-        # Если JSON пуст, пробуем взять из формы
-        elif request.form and 'waybillNo' in request.form:
-            waybill_no = request.form['waybillNo']
-        else:
+        waybill_no = request.args.get('waybillNo')
+        if not waybill_no:
             return jsonify({"error": "Трек-номер не указан"}), 400
 
-        # Запрос к внешнему API
         link = 'https://www.cargog20.com/jeecg-boot/appHandle/queryByBillNo'
         payload = {'waybillNo': waybill_no}
-        response = requests.post(link, json=payload, headers=header, timeout=10)
-        response.raise_for_status()  # Проверяем успешность
+        response = requests.post(
+            link, json=payload, headers=header, timeout=10)
+        response.raise_for_status()
         response_json = response.json()
 
-        # Извлекаем данные
-        waybill_detail = response_json.get('result', {}).get('waybillDetail', {})
+        waybill_detail = response_json.get(
+            'result', {}).get('waybillDetail', {})
         trace_list = response_json.get('result', {}).get('traceList', [])
 
         total_weight = waybill_detail.get('totalWeight', 'Не указан')
@@ -46,7 +41,6 @@ def track_package():
             stage_status = 'Информация отсутствует'
             stage_date = 'Информация отсутствует'
 
-        # Формируем ответ
         result = {
             "status": "success",
             "data": {
@@ -63,6 +57,7 @@ def track_package():
         return jsonify({"error": f"Ошибка подключения: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"error": f"Внутренняя ошибка: {str(e)}"}), 500
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
